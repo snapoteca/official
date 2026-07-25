@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Snapoteca Cast Spike Receiver</title>
+<style>
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: system-ui, sans-serif; }
+    #stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+    #photo { max-width: 100%; max-height: 100%; object-fit: contain; }
+    #debug {
+        position: absolute; top: 2vh; left: 2vw; max-width: 60vw; max-height: 90vh; overflow: hidden;
+        color: #0f0; background: rgba(0,0,0,0.6); font: 14px monospace; padding: 8px; white-space: pre-wrap;
+    }
+    #clock { position: absolute; top: 2vh; right: 2vw; color: #ff0; background: rgba(0,0,0,0.6); font: 20px monospace; padding: 8px; }
+</style>
+<script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+</head>
+<body>
+<div id="stage"><img id="photo" alt="" /></div>
+<div id="debug">booting…</div>
+<div id="clock"></div>
+<script>
+    // Spike goals: prove custom-namespace messaging, LAN HTTP <img> loading (mixed
+    // content), rendering-resolution reporting, and idle-timeout survival. Everything
+    // is logged on-screen because the TV has no visible console.
+    const NS = "urn:x-cast:com.snapoteca.viewer.v1";
+    const debugEl = document.getElementById("debug");
+    const lines = [];
+    function log(msg) {
+        lines.push(new Date().toISOString().slice(11, 19) + " " + msg);
+        while (lines.length > 30) lines.shift();
+        debugEl.textContent = lines.join("\n");
+    }
+    // Uptime clock: if the platform kills the receiver, the user sees the screen
+    // vanish; while alive this proves how long the session has survived while paused.
+    const started = Date.now();
+    setInterval(() => {
+        const s = Math.floor((Date.now() - started) / 1000);
+        document.getElementById("clock").textContent =
+            "alive " + Math.floor(s / 60) + "m" + (s % 60) + "s";
+    }, 1000);
+
+    window.addEventListener("error", (e) => log("JS ERROR: " + e.message));
+
+    const context = cast.framework.CastReceiverContext.getInstance();
+
+    function send(data) {
+        try {
+            context.sendCustomMessage(NS, undefined, data);
+        } catch (e) {
+            log("send failed: " + e.message);
+        }
+    }
+
+    const photo = document.getElementById("photo");
+    photo.addEventListener("load", () => {
+        log("IMG LOADED " + photo.naturalWidth + "x" + photo.naturalHeight + " " + photo.src);
+        send({ type: "SLIDE_READY", url: photo.src, naturalWidth: photo.naturalWidth, naturalHeight: photo.naturalHeight });
+    });
+    photo.addEventListener("error", () => {
+        log("IMG ERROR (mixed content blocked?) " + photo.src);
+        send({ type: "SLIDE_ERROR", url: photo.src });
+    });
+
+    context.addCustomMessageListener(NS, (event) => {
+        const msg = event.data || {};
+        log("msg: " + JSON.stringify(msg).slice(0, 120));
+        if (msg.type === "SHOW_SLIDE" && msg.url) {
+            photo.src = msg.url;
+        } else if (msg.type === "PING") {
+            send({ type: "PONG", at: Date.now() });
+        }
+    });
+
+    context.addEventListener(cast.framework.system.EventType.READY, () => {
+        const info = {
+            type: "RECEIVER_READY",
+            innerWidth: window.innerWidth,
+            innerHeight: window.innerHeight,
+            devicePixelRatio: window.devicePixelRatio,
+            userAgent: navigator.userAgent.slice(0, 120),
+        };
+        log("READY " + info.innerWidth + "x" + info.innerHeight + " dpr=" + info.devicePixelRatio);
+        log("UA " + info.userAgent);
+        send(info);
+    });
+    context.addEventListener(cast.framework.system.EventType.SENDER_CONNECTED, (e) => log("sender connected: " + e.senderId));
+    context.addEventListener(cast.framework.system.EventType.SENDER_DISCONNECTED, (e) => log("sender disconnected: " + e.senderId));
+    context.addEventListener(cast.framework.system.EventType.SHUTDOWN, () => log("SHUTDOWN"));
+
+    const options = new cast.framework.CastReceiverOptions();
+    options.disableIdleTimeout = true; // the idle-timeout question is a Phase 0 gate
+    options.customNamespaces = { [NS]: cast.framework.system.MessageType.JSON };
+    context.start(options);
+    log("context.start() called, idle timeout disabled");
+</script>
+</body>
+</html>
