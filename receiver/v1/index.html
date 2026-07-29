@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="default-src 'none'; script-src 'self' https://www.gstatic.com; style-src 'self'; font-src 'self'; img-src 'self' http: https:; connect-src https://www.gstatic.com ws: wss:; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+        />
+        <meta name="referrer" content="no-referrer" />
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <link rel="stylesheet" href="app.6d83f9f48557.css" />
+        <!--
+            connect-src permits any ws:/wss: origin because the CAF platform channel's
+            port is not documented and a wrong value fails silently — the receiver simply
+            never starts, with no way to diagnose it from the sofa. Tighten to the origin
+            observed on hardware (the CSP violation listener reports it) once confirmed.
+            No Subresource Integrity on the SDK: Google updates it in place, so a pinned
+            hash would take every receiver down without warning.
+        -->
+        <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+        <script defer src="app.53044fb6ef71.js"></script>
+        <title>Snapoteca</title>
+    </head>
+    <body>
+        <div id="stage">
+            <img id="slide-a" class="slide slide-back" alt="" referrerpolicy="no-referrer" />
+            <img id="slide-b" class="slide slide-back" alt="" referrerpolicy="no-referrer" />
+        </div>
+        <div id="guides"></div>
+        <div id="overlays"></div>
+        <div id="status" hidden></div>
+        <pre id="diagnostics" hidden></pre>
+    </body>
+</html>
